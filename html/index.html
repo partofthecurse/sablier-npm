@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Sablier Startportal</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+           background: #101522; color: #edf2ff; }
+    main { width: min(34rem, calc(100% - 3rem)); padding: 2rem; border-radius: 1.25rem;
+           background: #1b2435; box-sizing: border-box; box-shadow: 0 1rem 3rem #0005; }
+    h1 { margin-top: 0; font-size: 1.5rem; }
+    p { line-height: 1.55; color: #c5cee0; }
+    .status { margin: 1.5rem 0; padding: .85rem; border-radius: .6rem;
+              background: #141c2b; display: none; }
+    .status.show { display: block; }
+    .error { color: #ffb4b4; }
+    .ok { color: #8fd89a; }
+  </style>
+</head>
+<body>
+<main>
+  <h1 id="service-title">Dienst wird gestartet</h1>
+  <p id="service-message">Der Dienst wird bei Bedarf gestartet. Weiterleitung erfolgt automatisch.</p>
+    <div class="status" id="status"></div>
+  </main>
+<script src="/config.js?v=subdomain"></script>
+<script>
+  const host = window.location.hostname;
+  const cfg = window.SABLIER_CONFIG && window.SABLIER_CONFIG[host];
+
+  const titleEl = document.getElementById("service-title");
+  const messageEl = document.getElementById("service-message");
+  const statusEl = document.getElementById("status");
+
+  if (!cfg) {
+    titleEl.textContent = "Unbekannter Dienst";
+    messageEl.textContent = "Für die Domain \"" + host + "\" ist keine Route hinterlegt.";
+    statusEl.textContent = "Fehler: Keine Konfiguration gefunden.";
+    statusEl.className = "status error show";
+  } else {
+    titleEl.textContent = cfg.name + " wird gestartet";
+    messageEl.textContent = "Der Dienst " + cfg.name + " wird bei Bedarf gestartet. Weiterleitung erfolgt automatisch.";
+  }
+
+  async function start() {
+    if (!cfg) return;
+
+    statusEl.className = "status show";
+    statusEl.textContent = cfg.name + " wird gestartet …";
+
+    try {
+      const response = await fetch("/start" + cfg.path, {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Accept": "text/plain" }
+      });
+
+      const sessStatus = (response.headers.get("X-Sablier-Session-Status") || "").toLowerCase();
+
+      if (!response.ok) {
+        throw new Error("Sablier antwortete mit HTTP " + response.status + ".");
+      }
+      if (sessStatus !== "ready") {
+        throw new Error("Sablier hat keinen Ready-Status zurückgegeben. Antwortstatus: " + (sessStatus || "unbekannt") + ".");
+      }
+
+      statusEl.textContent = cfg.name + " ist bereit. Weiterleitung …";
+      statusEl.classList.add("ok");
+      window.location.replace(cfg.target);
+    } catch (err) {
+      statusEl.textContent = "Fehler: " + (err && err.message ? err.message : "Unbekannter Fehler.");
+      statusEl.classList.add("error");
+    }
+  }
+
+  start();
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+# Sablier behind a socket proxy: use this file instead of compose.yml.
+#   docker compose -f socket-proxy.yml -f whoami.yml up -d sablier
+name: sablier
+services:
+  socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy:3.4.5
+    container_name: socket-proxy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /run
+    environment:
+      CONTAINERS: 1 # list and inspect containers
+      EVENTS: 1     # follow container events
+      VERSION: 1    # connection check at startup
+      POST: 1       # start, stop, pause, update and wait for containers
+      INFO: 1
+      TIMEOUT_SERVER: 1h
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket-proxy
+
+  sablier:
+    image: sablierapp/sablier:next # x-release-please-version
+    container_name: sablier
+    restart: unless-stopped
+    command:
+      - start
+      - --provider.name=docker
+      - --provider.docker.strategy=stop
+      - --provider.auto-stop-on-startup
+      - --activity.enabled=true
+    cgroup: host
+    cap_add:
+      - BPF
+      - NET_ADMIN
+    environment:
+      DOCKER_HOST: tcp://socket-proxy:2375
+    depends_on:
+      - socket-proxy
+    networks:
+      - socket-proxy
+      - default
+    ports:
+      - "10000:10000"
+
+  sablier-startportal:
+    image: nginx:alpine
+    container_name: sablier-startportal
+    restart: unless-stopped
+    command:
+      - sh
+      - /generate-conf.sh
+    environment:
+      # Ziel-URL der Sablier-Blocking-API (erreichbar über socket-proxy).
+      SABLIER_API_URL: http://host.docker.internal:10000
+      # Standard-Session-Dauer für alle über dieses Portal gestarteten Gruppen.
+      SABLIER_SESSION_DURATION: 30m
+      # Liste der Endpunkte im Format domain:pfad:sablier-gruppe:ziel-url.
+      # Der Key in config.js ist die Domain (z. B. kino.part0.duckdns.org).
+      SABLIER_ROUTES: |
+        kino.part0.duckdns.org:/kino:jellyfin:http://192.168.178.128:8096
+        tools.part0.duckdns.org:/tools:tools:http://192.168.178.128:6080
+        home.part0.duckdns.org:/dashboard:dashboard:http://192.168.178.128:7575
+        paperless.part0.duckdns.org:/paperless:paperless:http://192.168.178.128:8800
+        bookstore.part0.duckdns.org:/bookstore:shelfmark:http://192.168.178.128:8084
+        shelfmark.part0.duckdns.org:/shelfmark:shelfmark:http://192.168.178.128:8084
+        bookorbit.part0.duckdns.org:/bookorbit:bookorbit:http://192.168.178.128:3003
+        files.part0.duckdns.org:/files:files:http://192.168.178.128:3333
+        feed.part0.duckdns.org:/rss:rss:http://192.168.178.128:5555
+    ports:
+      - "8097:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - socket-proxy
+      - default
+    volumes:
+      - ./html:/usr/share/nginx/html
+      - ./nginx/generate-conf.sh:/generate-conf.sh:ro
+
+networks:
+  socket-proxy:
+    internal: true
