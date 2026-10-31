@@ -1,6 +1,6 @@
 # Sablier On-Demand Setup
 
-This setup uses [Sablier](https://sablier.app/) to automatically start Docker containers on first request and stop them when idle.
+This setup uses [Sablier](https://sablier.app/) to automatically start Docker containers on first request and stop them when idle. As NPM ist not supported and i did not want to switch my setup, i came up with a workaround. its not as perfect, but it works good enough.
 
 ## Components
 
