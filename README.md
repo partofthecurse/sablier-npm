@@ -42,7 +42,7 @@ You must create a **proxy host in Nginx Proxy Manager (NPM)** that forwards to p
 
 ## 2. Docker image (required)
 
-Use the **`sablierapp/sablier:next`** image (current state). The `compose.yaml` already pins this image. This is important, as the activity tracking is not yet in main branch. 
+Use **`sablierapp/sablier:1.20.0`** or newer. Activity tracking (eBPF) is part of the main releases since v1.20.0. The `compose.yaml` already pins this version.
 
 ## 3. Service labels (required)
 
@@ -55,17 +55,15 @@ services:
     labels:
       - sablier.enable=true
       - sablier.group=jellyfin
-      - sablier.strategy=stop
       - "sablier.activity.enable=true"
-      - "sablier.activity.ports=6080"
+      - "sablier.activity.ports=8096"
       - "sablier.activity.session-duration=30m"
 ```
 
 - `sablier.enable=true` – opts the container into Sablier management
 - `sablier.group=<group>` – assigns the container to a Sablier group
-- `sablier.strategy=stop` – stops the container instead of pausing it (pause is buggy in the `next` image)
 - `sablier.activity.enable=true` – enables activity tracking so user activity extends the session
-- `sablier.activity.ports=6080` – ports monitored for activity (adjust to your service's port)
+- `sablier.activity.ports=8096` – **container-side** ports monitored for activity (not the published host port; e.g. `80` for it-tools published as `6080:80`). Traffic counts from 64 KB per 20s interval (`sablier.activity.min-bytes`)
 - `sablier.activity.session-duration=30m` – how long the session stays active after the last activity
 
 ## Session and activity tracking
@@ -76,7 +74,7 @@ With **activity tracking enabled** (`--activity.enabled=true` on the Sablier ser
 
 ## Important notes
 
-- **Strategy:** Use `--provider.docker.strategy=stop` (containers are stopped, not just paused). The **pause strategy is currently buggy in the `next` image**, so `stop` must be used for now.
+- **Strategy:** `--provider.docker.strategy=pause` is set globally in `compose.yaml` (idle containers are frozen and resume instantly, memory stays allocated). The strategy cannot be set per container; a `sablier.strategy` label does not exist and is ignored. After unpausing, Sablier waits for the next healthcheck, so a short healthcheck interval (or `start_interval`) speeds up the resume.
 - **Jellyfin clients:** Jellyfin clients must be addressed via `kino.part0.duckdns.org` (the proxy host domain), so the start portal can detect the request and trigger the container start. Direct access to the container port will not start the container.
 - **Jellyfin startup delay:** The Jellyfin client has a shorter timeout than the container startup time. After triggering the start, wait about **20 seconds** until the service is up before using the client.
 - WebSocket support enabled (e.g. for Jellyfin)

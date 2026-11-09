@@ -22,13 +22,13 @@ services:
       - socket-proxy
 
   sablier:
-    image: sablierapp/sablier:next # x-release-please-version
+    image: sablierapp/sablier:1.20.0
     container_name: sablier
     restart: unless-stopped
     command:
       - start
       - --provider.name=docker
-      - --provider.docker.strategy=stop
+      - --provider.docker.strategy=pause
       - --provider.auto-stop-on-startup
       - --activity.enabled=true
     cgroup: host
